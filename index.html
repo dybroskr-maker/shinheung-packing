@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>신흥세라믹 팔레트별 패킹리스트</title>
+<title>코팅용 팔레트별 패킹리스트</title>
 <script src="xlsx.full.min.js"></script>
 <script>
 // 같은 폴더의 SheetJS 파일을 못 읽은 경우에만 CDN에서 내려받는다(온라인일 때만).
@@ -57,13 +57,13 @@ if (typeof XLSX === 'undefined') {
 </head>
 <body>
 <header>
-  <h1>신흥세라믹 · 팔레트별 패킹리스트</h1>
-  <p>발주서 엑셀(.xlsx)을 올리면 팔레트별 패킹리스트를 만들고 인쇄/PDF로 저장합니다. 파일은 이 브라우저 안에서만 처리되며 서버로 전송되지 않습니다.</p>
+  <h1>코팅용 팔레트별 패킹리스트 자동으로 만들기</h1>
+  <p>이 작업은 외부로 노출되지 않음.</p>
 </header>
 <div class="wrap">
   <div id="drop">
-    <strong>발주서 엑셀에 새 열을 만들고 팔레트번호를 적어서 파일 저장 후,<br>그 파일을 여기에 첨부하거나 마우스로 끌어다 놓으면 됩니다</strong>
-    <span>클릭해서 파일을 골라도 됩니다 · .xlsx / .xlsm / .xls<br>Numbers를 비롯해 엑셀이 아닌 형식은 엑셀(.xlsx)로 변환·저장한 뒤 사용하세요</span>
+    <strong>발주서인 원본 엑셀파일을 열고 새로운 열을 만들어 그 열에 팔레트번호를 적고 저장한다.<br>여기에 저장한 엑셀파일을 첨부한다.</strong>
+    <span>파일을 끌어다 놓거나, 클릭해서 골라도 됩니다 · .xlsx / .xlsm / .xls<br>Numbers 등 다른 형식은 엑셀(.xlsx)로 변환·저장한 뒤 첨부하세요</span>
     <input type="file" id="file" accept=".xlsx,.xlsm,.xls" hidden>
   </div>
   <div class="bar">
