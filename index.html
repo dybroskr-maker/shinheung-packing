@@ -21,8 +21,8 @@ if (typeof XLSX === 'undefined') {
   .wrap{max-width:1000px;margin:0 auto;padding:20px}
   #drop{border:2px dashed #9aa3af;border-radius:12px;background:#fff;padding:38px 20px;text-align:center;cursor:pointer;transition:.15s}
   #drop.over{border-color:#2563eb;background:#eff6ff}
-  #drop strong{display:block;font-size:16px;margin-bottom:6px}
-  #drop span{font-size:13px;color:#6b7280}
+  #drop strong{display:block;font-size:16px;margin-bottom:10px;line-height:1.5}
+  #drop span{display:block;font-size:13px;color:#6b7280;line-height:1.6}
   .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:16px 0}
   button{font:inherit;padding:9px 16px;border-radius:8px;border:1px solid #d1d5db;background:#fff;cursor:pointer}
   button.primary{background:#2563eb;border-color:#2563eb;color:#fff;font-weight:600}
@@ -62,8 +62,8 @@ if (typeof XLSX === 'undefined') {
 </header>
 <div class="wrap">
   <div id="drop">
-    <strong>발주서 엑셀을 여기에 끌어다 놓기</strong>
-    <span>또는 클릭해서 파일 선택 · .xlsx / .xlsm / .xls (Numbers 파일은 엑셀로 저장 후 사용)</span>
+    <strong>발주서 엑셀에 새 열을 만들고 팔레트번호를 적어서 파일 저장 후,<br>그 파일을 여기에 첨부하거나 마우스로 끌어다 놓으면 됩니다</strong>
+    <span>클릭해서 파일을 골라도 됩니다 · .xlsx / .xlsm / .xls<br>Numbers를 비롯해 엑셀이 아닌 형식은 엑셀(.xlsx)로 변환·저장한 뒤 사용하세요</span>
     <input type="file" id="file" accept=".xlsx,.xlsm,.xls" hidden>
   </div>
   <div class="bar">
