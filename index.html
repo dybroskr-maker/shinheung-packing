@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>신흥세라믹 팔레트별 패킹리스트</title>
+<script src="xlsx.full.min.js"></script>
+<script>
+// 같은 폴더의 SheetJS 파일을 못 읽은 경우에만 CDN에서 내려받는다(온라인일 때만).
+if (typeof XLSX === 'undefined') {
+  document.write('<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"><\/script>');
+}
+</script>
+<style>
+  :root{ --line:#000; --pink:#D9A0D0; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;background:#f4f5f7;color:#111}
+  header{background:#1f2937;color:#fff;padding:16px 20px}
+  header h1{margin:0;font-size:18px;font-weight:700}
+  header p{margin:4px 0 0;font-size:12px;opacity:.75}
+  .wrap{max-width:1000px;margin:0 auto;padding:20px}
+  #drop{border:2px dashed #9aa3af;border-radius:12px;background:#fff;padding:38px 20px;text-align:center;cursor:pointer;transition:.15s}
+  #drop.over{border-color:#2563eb;background:#eff6ff}
+  #drop strong{display:block;font-size:16px;margin-bottom:6px}
+  #drop span{font-size:13px;color:#6b7280}
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:16px 0}
+  button{font:inherit;padding:9px 16px;border-radius:8px;border:1px solid #d1d5db;background:#fff;cursor:pointer}
+  button.primary{background:#2563eb;border-color:#2563eb;color:#fff;font-weight:600}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .msg{font-size:13px;padding:10px 12px;border-radius:8px;margin:12px 0;white-space:pre-wrap}
+  .msg.err{background:#fee2e2;color:#991b1b}
+  .msg.warn{background:#fef3c7;color:#92400e}
+  .msg.ok{background:#dcfce7;color:#166534}
+  table.summary{width:100%;border-collapse:collapse;background:#fff;font-size:13px;margin-bottom:20px}
+  table.summary th,table.summary td{border:1px solid #e5e7eb;padding:7px 9px;text-align:center}
+  table.summary th{background:#f3f4f6}
+  table.summary tfoot td{font-weight:700;background:#f9fafb}
+  .page{background:#fff;margin:0 auto 18px;padding:12mm;width:210mm;min-height:297mm;box-shadow:0 1px 5px rgba(0,0,0,.15)}
+  table.pl{width:100%;border-collapse:collapse;table-layout:fixed}
+  table.pl td{border:.7px solid var(--line);text-align:center;vertical-align:middle;padding:3px 2px;font-size:10pt;word-break:break-all}
+  table.pl td.title{font-size:18pt;padding:8px}
+  table.pl td.h1{font-size:13pt;padding:5px 2px}
+  table.pl td.head{font-size:9pt}
+  table.pl td.pink{background:var(--pink)}
+  table.pl tr.total td{font-size:12pt}
+  col.c0{width:32mm}col.c1{width:40mm}col.c2{width:26mm}col.c3{width:26mm}col.c4{width:24mm}col.c5{width:26mm}
+  @media print{
+    body{background:#fff}
+    header,.wrap>*:not(#out),#out .noprint{display:none!important}
+    .wrap{padding:0;max-width:none}
+    #out{display:block!important}
+    .page{box-shadow:none;margin:0;padding:0;width:auto;min-height:0;break-after:page;page-break-after:always}
+    .page:last-child{break-after:auto;page-break-after:auto}
+    @page{size:A4;margin:12mm}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>신흥세라믹 · 팔레트별 패킹리스트</h1>
+  <p>발주서 엑셀(.xlsx)을 올리면 팔레트별 패킹리스트를 만들고 인쇄/PDF로 저장합니다. 파일은 이 브라우저 안에서만 처리되며 서버로 전송되지 않습니다.</p>
+</header>
+<div class="wrap">
+  <div id="drop">
+    <strong>발주서 엑셀을 여기에 끌어다 놓기</strong>
+    <span>또는 클릭해서 파일 선택 · .xlsx / .xlsm / .xls (Numbers 파일은 엑셀로 저장 후 사용)</span>
+    <input type="file" id="file" accept=".xlsx,.xlsm,.xls" hidden>
+  </div>
+  <div class="bar">
+    <button id="print" class="primary" disabled>인쇄 / PDF 저장</button>
+    <button id="reset" disabled>다시 올리기</button>
+    <span id="fname" style="font-size:13px;color:#6b7280"></span>
+  </div>
+  <div id="report"></div>
+  <div id="summary"></div>
+</div>
+<div id="out"></div>
+
+<script>
+"use strict";
+const STONE_ABBR = {AVORIO:'AV', GRIGIO:'GR', GRIGRO:'GR', NOCE:'NO'};
+const HIGHLIGHT = new Set(['AVORIO']);
+const ROWS_PER_PAGE = 24;
+const POS = /^(\d{3})-.+-\d+$/;
+
+function stoneAbbr(n){ if(!n) return ''; const k=String(n).trim().toUpperCase(); return STONE_ABBR[k] || k.slice(0,2); }
+
+function sheetTier(name){
+  const t = String(name).trim();
+  if (t.includes('첫단')) return '첫단';
+  const m = t.match(/^117-(.+)$/);
+  if (m) return m[1] + '구간';
+  return t;
+}
+
+function parseSplit(note, totalEa){
+  const pairs = [];
+  const re = /(\d+)\s*번?\s*파[레렛]트에?\s*(\d+|나머지)/g;
+  let m;
+  while ((m = re.exec(String(note))) !== null) pairs.push([parseInt(m[1],10), m[2]]);
+  if (!pairs.length) return null;
+  let assigned = 0;
+  for (const [,q] of pairs) if (q !== '나머지') assigned += parseInt(q,10);
+  return pairs.map(([p,q]) => [p, q === '나머지' ? (totalEa - assigned) : parseInt(q,10)]);
+}
+
+function detectPalletCol(grid){
+  const lim = Math.min(grid.length, 60);
+  for (let r=0; r<lim; r++){
+    const row = grid[r] || [];
+    for (let c=0; c<row.length; c++){
+      const v = row[c];
+      if (v !== null && v !== undefined && String(v).includes('팔레트')) return c;
+    }
+  }
+  return null;
+}
+
+function toNum(v){
+  if (v === null || v === undefined || v === '') return null;
+  const f = parseFloat(v);
+  return isNaN(f) ? null : f;
+}
+
+function num(v){
+  if (v === null || v === undefined || v === '') return '';
+  const f = parseFloat(v);
+  if (isNaN(f)) return String(v);
+  return Number.isInteger(f) ? String(f) : String(f);
+}
+
+function readPallets(wb){
+  const pallets = new Map();      // key -> {rows, balju, gugan}
+  const notes = [];               // 경고 메시지
+  let sheetsUsed = 0;
+  for (const name of wb.SheetNames){
+    if (name === '가공상세도') continue;
+    const ws = wb.Sheets[name];
+    if (!ws) continue;
+    // 시트 범위가 A1이 아닌 곳에서 시작해도 열 위치(A=0,B=1,…)가 밀리지 않도록 원점을 A1로 고정
+    let range = null;
+    if (ws['!ref']){
+      const d = XLSX.utils.decode_range(ws['!ref']);
+      range = {s:{r:0, c:0}, e:{r:d.e.r, c:Math.max(d.e.c, 12)}};
+    }
+    const opts = {header:1, raw:true, defval:null, blankrows:true};
+    if (range) opts.range = range;
+    const grid = XLSX.utils.sheet_to_json(ws, opts);
+    if (!grid.length) continue;
+    const pcol = detectPalletCol(grid);
+    if (pcol === null){ notes.push(`시트 "${name}": 팔레트 열을 찾지 못해 건너뜀`); continue; }
+    const cdn = (grid[2] && grid[2][1] != null) ? String(grid[2][1]).trim() : null;
+
+    const blds = new Set(); const items = [];
+    for (const row of grid){
+      if (!row) continue;
+      const posRaw = row[1];
+      if (posRaw === null || posRaw === undefined) continue;
+      const pos = String(posRaw).trim();
+      const m = pos.match(POS);
+      if (!m || pos.includes('Position')) continue;
+      const pv = row[pcol];
+      if (pv === null || pv === undefined || String(pv).trim() === '') continue;
+      blds.add(m[1]);
+      items.push(row);
+    }
+    if (!items.length){ notes.push(`시트 "${name}": 팔레트가 배정된 품목이 없음`); continue; }
+    sheetsUsed++;
+    const multi = blds.size > 1;
+    const tier = sheetTier(name);
+
+    for (const row of items){
+      const pos = String(row[1]).trim();
+      const bld = pos.match(POS)[1];
+      const stone = row[2] ? String(row[2]).trim() : '';
+      const w = row[5], l = row[6], ea = row[7];
+      let m2 = toNum(row[11]);
+      if (m2 === null){
+        const W = toNum(w), L = toNum(l), E = toNum(ea);
+        m2 = (W !== null && L !== null && E !== null) ? W*L*E/1e6 : 0;
+      }
+      const balju = multi ? `${bld}동` : (cdn || `${bld}동`);
+      const palletRaw = row[pcol];
+
+      const add = (key, recEa, recM2, note) => {
+        if (!pallets.has(key)) pallets.set(key, {rows:[], balju, gugan:tier});
+        pallets.get(key).rows.push({pos: pos + (note||''), stone, w, l, ea:recEa, m2:recM2});
+      };
+
+      const pnum = toNum(palletRaw);
+      if (pnum !== null && String(palletRaw).trim().match(/^\d+(\.0+)?$/)){
+        add(Math.round(pnum), toNum(ea) ?? 0, m2);
+        continue;
+      }
+      const tot = toNum(ea) ?? 0;
+      const split = parseSplit(palletRaw, tot);
+      if (split){
+        for (const [pal, part] of split){
+          const frac = tot ? part/tot : 0;
+          add(pal, part, Math.round(m2*frac*1e6)/1e6, ` (${part}장)`);
+        }
+      } else if (pnum !== null){
+        add(Math.round(pnum), toNum(ea) ?? 0, m2);
+      } else {
+        add(String(palletRaw).trim(), toNum(ea) ?? 0, m2);
+      }
+    }
+  }
+  return {pallets, notes, sheetsUsed};
+}
+
+function esc(s){ return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+function buildPages(pno, info){
+  const rows = info.rows;
+  const seen = [];
+  for (const r of rows){ const a = stoneAbbr(r.stone); if (a && !seen.includes(a)) seen.push(a); }
+  const pumnyeong = seen.join(',');
+  const totEa = rows.reduce((s,r)=> s + (toNum(r.ea) ?? 0), 0);
+  const totM2 = Math.round(rows.reduce((s,r)=> s + r.m2, 0)*100)/100;
+  const chunks = [];
+  for (let i=0;i<rows.length;i+=ROWS_PER_PAGE) chunks.push(rows.slice(i,i+ROWS_PER_PAGE));
+  if (!chunks.length) chunks.push([]);
+  const label = (typeof pno === 'number') ? `${pno}번` : `${pno}`;
+  let html = '';
+  chunks.forEach((chunk, pi) => {
+    const last = pi === chunks.length-1;
+    const cont = chunks.length === 1 ? '' : ` (${pi+1}/${chunks.length})`;
+    let body = '';
+    for (const r of chunk){
+      const pink = HIGHLIGHT.has(String(r.stone).toUpperCase()) ? ' class="pink"' : '';
+      body += `<tr><td>${esc(r.pos)}</td><td${pink}>${esc(r.stone)}</td><td>${num(r.w)}</td><td>${num(r.l)}</td><td>${num(r.ea)}</td><td>${r.m2.toFixed(2)}</td></tr>`;
+    }
+    if (last){
+      body += `<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>`;
+      body += `<tr class="total"><td></td><td></td><td></td><td></td><td>${totEa}</td><td>${totM2.toFixed(2)}</td></tr>`;
+    }
+    html += `<div class="page"><table class="pl">
+<colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"></colgroup>
+<tr><td class="title" colspan="6">패 킹 리 스 트${cont}</td></tr>
+<tr><td class="h1">발 주 동</td><td class="h1">${esc(info.balju)}</td><td class="h1" colspan="2">품 명</td><td class="h1" colspan="2">${esc(pumnyeong)}</td></tr>
+<tr><td class="h1">파 렛 트</td><td class="h1">${esc(label)}</td><td class="h1" colspan="2">구 간</td><td class="h1" colspan="2">${esc(info.gugan)}</td></tr>
+<tr><td class="head" rowspan="2">위치(Position)</td><td class="head">석  종</td><td class="head" colspan="2">규 격 (Dimensions)</td><td class="head" colspan="2">수량(Q)</td></tr>
+<tr><td class="head">(Type of the stone)</td><td class="head">너비(W)</td><td class="head">길이(L)</td><td class="head">수량(EA)</td><td class="head">M2</td></tr>
+${body}</table></div>`;
+  });
+  return {html, totEa, totM2, count: rows.length};
+}
+
+function render(wb, fileName){
+  const {pallets, notes, sheetsUsed} = readPallets(wb);
+  const report = document.getElementById('report');
+  const summary = document.getElementById('summary');
+  const out = document.getElementById('out');
+  report.innerHTML = ''; summary.innerHTML = ''; out.innerHTML = '';
+
+  if (!pallets.size){
+    report.innerHTML = `<div class="msg err">팔레트가 배정된 품목을 찾지 못했습니다. 발주서의 '팔레트' 열이 채워져 있는지 확인해 주세요.${notes.length? '\n· '+notes.map(esc).join('\n· ') : ''}</div>`;
+    document.getElementById('print').disabled = true;
+    return;
+  }
+
+  const keys = [...pallets.keys()].sort((a,b) => {
+    const an = typeof a === 'number', bn = typeof b === 'number';
+    if (an && bn) return a-b;
+    if (an) return -1;
+    if (bn) return 1;
+    return String(a).localeCompare(String(b));
+  });
+
+  let rowsHtml = '', gEa = 0, gM2 = 0, gCnt = 0, html = '';
+  for (const k of keys){
+    const info = pallets.get(k);
+    const p = buildPages(k, info);
+    html += p.html;
+    gEa += p.totEa; gM2 += p.totM2; gCnt += p.count;
+    rowsHtml += `<tr><td>${esc(k)}</td><td>${esc(info.balju)}</td><td>${esc(info.gugan)}</td><td>${p.count}</td><td>${p.totEa}</td><td>${p.totM2.toFixed(2)}</td></tr>`;
+  }
+  out.innerHTML = html;
+
+  // 팔레트 번호 연속성 점검
+  const nums = keys.filter(k => typeof k === 'number');
+  const missing = [];
+  if (nums.length){
+    for (let i = Math.min(...nums); i <= Math.max(...nums); i++) if (!nums.includes(i)) missing.push(i);
+  }
+  const badKeys = keys.filter(k => typeof k !== 'number');
+
+  let msg = `<div class="msg ok">시트 ${sheetsUsed}개에서 팔레트 ${keys.length}개 · 품목 ${gCnt}건 · 수량 ${gEa} · M2 ${gM2.toFixed(2)} 를 읽었습니다.</div>`;
+  if (missing.length) msg += `<div class="msg warn">팔레트 번호가 건너뜁니다: ${missing.join(', ')} — 원본에서 해당 번호 배정을 확인해 주세요.</div>`;
+  if (badKeys.length) msg += `<div class="msg warn">숫자가 아닌 팔레트 값: ${badKeys.map(esc).join(' / ')}</div>`;
+  if (notes.length) msg += `<div class="msg warn">· ${notes.map(esc).join('<br>· ')}</div>`;
+  report.innerHTML = msg;
+
+  summary.innerHTML = `<table class="summary"><thead><tr><th>팔레트</th><th>발주동</th><th>구간</th><th>품목수</th><th>수량(EA)</th><th>M2</th></tr></thead>
+<tbody>${rowsHtml}</tbody><tfoot><tr><td colspan="3">합계</td><td>${gCnt}</td><td>${gEa}</td><td>${gM2.toFixed(2)}</td></tr></tfoot></table>`;
+
+  document.getElementById('print').disabled = false;
+  document.getElementById('reset').disabled = false;
+  document.getElementById('fname').textContent = fileName;
+  window.__result = {pallets: keys.length, items: gCnt, ea: gEa, m2: gM2, missing};
+}
+
+function handleFile(f){
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      render(wb, f.name);
+    } catch (err){
+      document.getElementById('report').innerHTML = `<div class="msg err">파일을 읽지 못했습니다: ${esc(err.message)}</div>`;
+    }
+  };
+  reader.readAsArrayBuffer(f);
+}
+
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+document.getElementById('print').addEventListener('click', () => window.print());
+document.getElementById('reset').addEventListener('click', () => {
+  fileInput.value = '';
+  document.getElementById('out').innerHTML = '';
+  document.getElementById('summary').innerHTML = '';
+  document.getElementById('report').innerHTML = '';
+  document.getElementById('fname').textContent = '';
+  document.getElementById('print').disabled = true;
+});
+</script>
+</body>
+</html>
