@@ -1,0 +1,50 @@
+name: 보안 게이트
+
+# 보안 게이트 ⓪~③ — dybros-app PR #330(gate.yml 보안 스텝)을 이 저장소용으로 옮긴 것.
+# 기준: DYBROS 보안점검 v4 4부(2026-11-01). 대표 지시 2026-11-01 19:31 · 「다른 앱도 같은 검사를 해야지」.
+# 경고 모드가 아니다 — 기록 누락·예외 밖 취약점·비밀 유출·헤더 불일치는 실패다.
+# ⛔ 잡 이름 security-gate 를 바꾸지 말 것 — 브랜치 보호 규칙의 필수 체크가 문자열로 참조한다.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: security-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  security-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 보안 ⓪ 검증 기록 (관련 변경 → PR 본문 표 또는 「해당 없음 — 사유」)
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/ci/check-security-record.mjs
+
+      - name: 보안 ① 취약 의존성 — 해당 없음
+        run: echo "::notice::package.json 이 없는 정적 사이트 — npm 의존성 검사 대상 없음"
+
+      - name: 보안 ② 비밀값 유출 (gitleaks 자가시험 + 작업트리 + PR 커밋 범위)
+        env:
+          GITLEAKS_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          GITLEAKS_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+        run: bash scripts/ci/secret-scan.sh
+
+      - name: 보안 ③ 응답 헤더
+        run: node scripts/ci/check-headers.mjs

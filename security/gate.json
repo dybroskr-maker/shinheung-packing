@@ -1,0 +1,2 @@
+{ "recordPaths": "^(\\.github/|security/|scripts/ci/)",
+  "headers": { "mode": "meta", "files": ["index.html"], "must": { "referrer-policy": "strict-origin-when-cross-origin" } } }

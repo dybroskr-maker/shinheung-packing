@@ -1,0 +1,18 @@
+# gitleaks 설정 — 기본 규칙을 그대로 쓰고(규칙 축소 금지) 경로 예외만 둔다.
+# 예외를 늘리려면 PR 본문 「보안 검증 기록」에 사유를 적는다.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "본검사 제외 경로 — 자가시험용 가짜 토큰·잠금파일·빌드 산출물"
+paths = [
+  '''(^|/)security/secret-fixture/''',
+  '''package-lock\.json$''',
+  '''(^|/)\.next/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.git/''',
+]
+# 공개용 Supabase publishable 키(sb_publishable_…)는 비밀이 아니다 — 비밀키(sb_secret_·service_role)는 예외 없음.
+regexes = [
+  '''sb_publishable_[A-Za-z0-9_-]+''',
+]
